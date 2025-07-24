@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Voiceprint MFCC Chunking</title>
+</head>
+<body>
+  <h2>Record 10 seconds of audio with a phrase</h2>
+  <button id="recordBtn">🎙️ Start Recording</button>
+  <p id="status"></p>
+  <table border="1" id="mfccTable" style="display:none;">
+    <thead><tr><th>Chunk</th><th>MFCCs (13)</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    let recorder, audioBlob;
+    document.getElementById('recordBtn').onclick = async () => {
+      const status = document.getElementById('status');
+      status.innerText = 'Recording...';
+      document.getElementById('mfccTable').style.display = 'none';
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recorder = new MediaRecorder(stream);
+      const chunks = [];
+
+      recorder.ondataavailable = e => chunks.push(e.data);
+      recorder.onstop = async () => {
+        audioBlob = new Blob(chunks, { type: 'audio/webm' });
+        status.innerText = 'Uploading...';
+
+        const formData = new FormData();
+        formData.append('audio', audioBlob, 'recording.webm');
+
+        const response = await fetch('/upload_audio', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await response.json();
+
+        // Show MFCCs in table
+        const table = document.getElementById('mfccTable');
+        const tbody = table.querySelector('tbody');
+        tbody.innerHTML = '';
+        data.mfcc_chunks.forEach((chunk, index) => {
+          const row = `<tr><td>${index + 1}</td><td>${chunk.map(x => x.toFixed(3)).join(', ')}</td></tr>`;
+          tbody.innerHTML += row;
+        });
+        table.style.display = '';
+        status.innerText = 'Done!';
+      };
+
+      recorder.start();
+      setTimeout(() => recorder.stop(), 10000);  // Stop after 10 seconds
+    };
+  </script>
+</body>
+</html>
